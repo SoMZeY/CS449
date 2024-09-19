@@ -8,7 +8,7 @@ void calculator()
     while (1)
     {
         // Get the input
-        printf("Enter your calculation (e.g., 2 + 2): \n");
+        printf("Enter your calculation:\n");
         scanf("%d %c %d", &num1, &oper, &num2);
 
         // Handle different operators
