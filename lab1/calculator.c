@@ -9,13 +9,15 @@ void calculator()
     {
         // Get the input
         printf("Enter your calculation:\n");
+		// Handles not correct amount of characters
         if (scanf("%d %c %d", &num1, &oper, &num2) != 3)
         {
             printf("Invalid input! Please enter a valid calculation.\n");
-            while (getchar() != '\n'); // Clear the input buffer
+            while (getchar() != '\n');
             continue;
         }
 
+		// THIS CAN BE DONE BETTER, BUT IM TOO LAZY
         // Handle different operators
         if (oper == '+')
         {
@@ -31,6 +33,7 @@ void calculator()
         }
         else if (oper == '/')
         {
+			// Edge case
             if (num2 == 0)
             {
                 printf("Error: Division by zero is not allowed.\n");
@@ -53,7 +56,7 @@ void calculator()
         }
         else
         {
-            // If an invalid operator is used, print the error and quit
+            // If an invalid operator is used
             printf("Invalid calculation! \"%d %c %d\"\n", num1, oper, num2);
             break;
         }
