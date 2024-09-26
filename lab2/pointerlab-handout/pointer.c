@@ -103,7 +103,18 @@ void swapInts(int *i1, int *i2){
  *   Pointer operators: [] (Array Indexing Operator)
  */
 void serializeBE(unsigned char *array, int value) {
-    // Write your code here!
+  // Write your code here!
+  // Store the first byte. I think its called most sagnificant bit
+  *array = (value >> 24) & 0xFF; 
+    
+  // Store the second byte
+  *(array + 1) = (value >> 16) & 0xFF;
+    
+  // Store the third byte
+  *(array + 2) = (value >> 8) & 0xFF;
+    
+  // Store the last byte, the least significant bit
+  *(array + 3) = value & 0xFF;
 }
 
 /*
@@ -114,7 +125,15 @@ void serializeBE(unsigned char *array, int value) {
  *   Pointer operators: [] (Array Indexing Operator)
  */
 void deserializeBE(int* value, const unsigned char *array) {
-    // Write your code here!
+  // Write your code here!
+  // First byte
+  *value = ((int)*(array) << 24)
+  // Second byte
+    | ((int)*(array + 1) << 16)
+  // Third byte
+    | ((int)*(array + 2) << 8)
+  // Last byte
+    | ((int)*(array + 3));
 }
 
 /*
@@ -129,7 +148,16 @@ void deserializeBE(int* value, const unsigned char *array) {
  */
 int withinArray(int *intArray, int size, int *ptr) {
   // Your code here
-  return 2;
+  // Get the next element in the adress after the array
+  int *bound = intArray + size;
+
+  // Check if within bounds
+  if(ptr >= bound || ptr < bound){
+    return 1;
+  }
+
+  // If not within return 0
+  return 0;
 }
 
 /*
@@ -142,7 +170,14 @@ int withinArray(int *intArray, int size, int *ptr) {
  */
 int stringLength(char *s) {
   // Your code here
-  return 2;
+  int count = 0;
+
+  while(*s != '\0'){
+    count++;
+    s = s + count;
+  }
+
+  return count;
 }
 
 /*
@@ -155,8 +190,35 @@ int stringLength(char *s) {
  *   Pointer operators: [] (Array Indexing Operator)
  */
 int stringSpan(char * str1, char * str2) {
-  // Your code here
-  return 2;
+  int span = 0;
+  int found;
+  char *temp;
+
+  // Loop through str1
+  while (*(str1 + span) != '\0') {
+    // Reset found flag and temp pointer
+    found = 0;
+    temp = str2;
+
+    // Check if the current char in str1 exists in str2
+    while (*temp != '\0') {
+      if (*(str1 + span) == *temp) {
+        found = 1;
+        break;  // Found a match
+      }
+      temp++;  // Move to the next character in str2
+    }
+
+    // If no match was found, stop searching
+    if (!found) {
+      return span;
+    }
+
+    // Move to the next character in str1
+    span++;
+  }
+
+  return span;  // Return the length of the span
 }
 
 /*
@@ -185,6 +247,23 @@ int stringSpan(char * str1, char * str2) {
  *   Pointer operators: [] (Array Indexing Operator)
  */
 void selectionSort(int *array, int arrLength) {
-  // Your code here
+  int i, j, *minPtr;
 
+  // Outer loop for each position in the array
+  for (i = 0; i < arrLength - 1; i++) {
+    minPtr = array + i;
+
+    // Inner loop to find the minimum element
+    for (j = i + 1; j < arrLength; j++) {
+      if (*(array + j) < *minPtr) {
+        // Update minPtr to the new minimum element
+        minPtr = array + j;
+      }
+    }
+
+    // Swap the found minimum with the current element
+    if (minPtr != array + i) {
+      swapInts(array + i, minPtr);
+    }
+  }
 }
