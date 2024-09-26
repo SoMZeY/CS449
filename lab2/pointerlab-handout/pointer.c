@@ -147,16 +147,15 @@ void deserializeBE(int* value, const unsigned char *array) {
  *   Pointer operators: [] (Array Indexing Operator)
  */
 int withinArray(int *intArray, int size, int *ptr) {
-  // Your code here
-  // Get the next element in the adress after the array
+  // Get the address right after the last element of the array
   int *bound = intArray + size;
 
-  // Check if within bounds
-  if(ptr >= bound || ptr < bound){
+  // Check if ptr is within the bounds of the array
+  if (ptr >= intArray && ptr < bound) {
     return 1;
   }
 
-  // If not within return 0
+  // ptr is not within the array
   return 0;
 }
 
@@ -169,12 +168,12 @@ int withinArray(int *intArray, int size, int *ptr) {
  *   Pointer operators: [] (Array Indexing Operator)
  */
 int stringLength(char *s) {
-  // Your code here
   int count = 0;
 
-  while(*s != '\0'){
+  // Iterate through the string until the null terminator is reached
+  while (*s != '\0') {
     count++;
-    s = s + count;
+    s++;  // Move to the next character in the string
   }
 
   return count;
