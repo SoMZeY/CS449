@@ -23,16 +23,44 @@
 */
 queue_t *q_new()
 {
-    queue_t *q =  malloc(sizeof(queue_t));
+    queue_t *q = malloc(sizeof(queue_t));
     /* What if malloc returned NULL? */
+    if (!q)
+    {
+      return NULL;
+    }
     q->head = NULL;
+    q->tail = NULL;
+    q->size = 0;
     return q;
 }
 
 /* Free all storage used by queue */
 void q_free(queue_t *q)
 {
-    /* How about freeing the list elements and the strings? */
+    if (!q)
+    {
+      return;
+    }
+
+    // Mark current list element
+    list_ele_t* currentElement = q->head;
+    list_ele_t* nextElement;
+
+    // Loop over each linked list
+    while (currentElement)
+    {
+      // Update the next element, even if its a tail and its null
+      nextElement = currentElement->next;
+
+      // Free the string and the element
+      free(currentElement->value);
+      free(currentElement);
+
+      // Update the current element after the freeing
+      currentElement = nextElement;
+    }
+
     /* Free queue structure */
     free(q);
 }
@@ -46,14 +74,43 @@ void q_free(queue_t *q)
  */
 bool q_insert_head(queue_t *q, char *s)
 {
-    list_ele_t *newh;
     /* What should you do if the q is NULL? */
-    newh = malloc(sizeof(list_ele_t));
+    if (!q || !s)
+    {
+      return false;
+    }
+
+    list_ele_t *newh = malloc(sizeof(list_ele_t));
+
+    if (!newh)
+    {
+      return false;
+    }
     /* Don't forget to allocate space for the string and copy it */
-    /* What if either call to malloc returns NULL? */
+    char *str = malloc((strlen(s) + 1) * sizeof(char));
+
+    if (!str)
+    {
+      free(newh);
+      return false;
+    }
+
+    // Copy the string
+    strcpy(str, s);
+
     /* You must do the cleanup of anything left behind */
+    newh->value = str;
     newh->next = q->head;
     q->head = newh;
+
+    if (q->size == 0)
+    {
+      q->tail = newh;
+    }
+
+    // After everything is done update the size
+    q->size++;
+
     return true;
 }
 
@@ -69,7 +126,45 @@ bool q_insert_tail(queue_t *q, char *s)
 {
     /* You need to write the complete code for this function */
     /* Remember: It should operate in O(1) time */
-    return false;
+    if (!q || !s)
+    {
+      return false;
+    }
+
+    list_ele_t* newt = malloc(sizeof(list_ele_t));
+
+    if (!newt)
+    {
+      return false;
+    }
+
+    char* str = malloc((strlen(s) + 1) * sizeof(char));
+
+    if (!str)
+    {
+      free(newt);
+      return false;
+    }
+
+    strcpy(str, s);
+    newt->next = NULL; // Even though this might be unnecessary make that next of the new tail is NULL
+    newt->value = str;
+
+    if (!q->head)
+    {
+      q->head = newt;
+      q->tail = newt;
+    }
+    else 
+    {
+      q->tail->next = newt;
+      q->tail = newt;
+    }
+
+    // After everything is completed, update the size
+    q->size++;
+
+    return true;
 }
 
 /*
@@ -82,8 +177,37 @@ bool q_insert_tail(queue_t *q, char *s)
 */
 bool q_remove_head(queue_t *q, char *sp, size_t bufsize)
 {
-    /* You need to fix up this code. */
-    q->head = q->head->next;
+    if (!q || !q->head)
+    {
+      return false;
+    }
+
+    /* You need to fix up this code. */\      
+    // Copy the string
+    if (sp)
+    {
+      strncpy(sp, q->head->value, bufsize - 1);        
+      sp[bufsize - 1] = '\0';
+    }
+    
+    // Save the next element
+    list_ele_t* nextHeader = q->head->next;
+
+    // Remove current header
+    free(q->head->value);
+    free(q->head);
+
+    q->head = nextHeader;
+    
+    // If head was the only element, make tail false
+    if (!q->head)
+    {
+      q->tail = NULL;
+    }
+
+    // After everything is completed, update the size of the queue
+    q->size--;
+
     return true;
 }
 
@@ -95,7 +219,12 @@ int q_size(queue_t *q)
 {
     /* You need to write the code for this function */
     /* Remember: It should operate in O(1) time */
-    return 0;
+    if(!q)
+    {
+      return 0;
+    }
+
+    return q->size;
 }
 
 /*
@@ -107,6 +236,28 @@ int q_size(queue_t *q)
  */
 void q_reverse(queue_t *q)
 {
-    /* You need to write the code for this function */
+    if (!q || !q->head || !q->head->next)
+    {
+        // No need to reverse if queue is NULL, empty, or has only one element
+        return;
+    }
+
+    list_ele_t *prev = NULL;
+    list_ele_t *current = q->head;
+    list_ele_t *next = NULL;
+
+    // Update tail to be the current head (will become the tail after reversal)
+    q->tail = q->head;
+
+    // Reverse
+    while (current != NULL)
+    {
+        next = current->next;   // Store the next node
+        current->next = prev;   // Reverse the link
+        prev = current;         // Move prev to current
+        current = next;         // Move to next node
+    }
+
+    q->head = prev;
 }
 
