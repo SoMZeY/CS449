@@ -96,6 +96,7 @@ uint16_t revealCommand(char* argv[])
     fseek(file, bmpFile.pixelOffset, SEEK_SET);
 
     // Since the bmp needs to be multiple of 4 we need to calculate padding.
+    // Since row size is the same for each row we can calculate it outside of the loop
     // First calculate the row size in bytes
     int rowSize = dib.width * 3;
     // Calculate how many padding bytes we need to skip
@@ -163,7 +164,116 @@ uint16_t revealCommand(char* argv[])
 
 uint16_t hideCommand(char *argv[])
 {
-    return 0;
+    // Open both of the files
+    // File 1
+    FILE *file1 = fopen(argv[2], "rb+");
+    if (!file1) 
+    {
+        printf("ERROR: File %s not found.\n", argv[2]);
+        fclose(file1);
+        return 0;
+    }
+
+    // File
+    FILE *file2 = fopen(argv[3], "rb");
+    if (!file2) 
+    {
+        printf("ERROR: File %s not found.\n", argv[3]);
+        fclose(file2);
+        return 0;
+    }
+
+    // Create a validate the structs
+    BMPFileHeader bmpFile1, bmpFile2;
+    BMPDIBHeader dib1, dib2;
+
+    // Validate the first set of structs
+    uint8_t validationResult = validateBMPFile(file1, &bmpFile1, &dib1);
+
+    // Checks the validation of first set of structs
+    if (validationResult == 0) 
+    {
+        return 0;
+    }
+
+    // Validation of the second set of structs
+    validationResult = validateBMPFile(file2, &bmpFile2, &dib2);
+    
+    // Checks validation for the second set of structs
+    if (validationResult == 0) 
+    {
+        return 0;
+    }
+
+    // Make sure the image width and height are the same
+    if (dib1.width != dib2.width || dib1.height != dib2.height) 
+    {
+        printf("ERROR: Images must have the same dimensions.\n");
+        return 0;
+    }
+
+    // Calculate the padding of the rows
+    int rowSize = dib1.width * 3;
+    int padding = (4 - (rowSize % 4)) % 4;
+
+    // Move file pointers to the start of pixel data
+    fseek(file1, bmpFile1.pixelOffset, SEEK_SET);
+    fseek(file2, bmpFile2.pixelOffset, SEEK_SET);
+
+    // Start looping over each pixel
+    for (int y = 0; y < dib1.height; y++) {
+        for (int x = 0; x < dib1.width; x++) {
+            // Read one pixel from each image
+            uint8_t colors1[3];
+            uint8_t colors2[3];
+
+            // Read the pixel from the file1
+            uint8_t pixelsRead = fread(colors1, sizeof(uint8_t), 3, file1);
+
+            // Check if exactly 3 were read
+            if (pixelsRead != 3) {
+                printf("ERROR: Failed to read pixel data from %s.\n", argv[2]);
+            }
+            
+            // Read the pixel from the file2
+            pixelsRead = fread(colors2, sizeof(uint8_t), 3, file2);
+
+            // Check if exactly 3 were read
+            if (pixelsRead != 3) {
+                printf("ERROR: Failed to read pixel data from %s.\n", argv[3]);
+            }
+ 
+            // Start the embedding of the data, where we need to perform some bit manipulation
+            for (int i = 0; i < 3; i++) {
+                // Extract 4 MSBs from colors2, by uisng 0xF0 to mask the upper 4 bits
+                uint8_t msb = colors2[i] & 0xF0; // 0xF0 masks the upper 4 bits
+ 
+                // Extract 4 LSBs from colors1, by using 0x0F to mask the lower 4 bits
+                uint8_t lsb = colors1[i] & 0x0F;
+ 
+                // Combine msbs from colors2 with lsbs from colors1
+                colors1[i] = lsb | (msb);
+            }
+ 
+            // Backtrack to start writing
+            fseek(file1, -3, SEEK_CUR);
+
+            // Write the modified pixel to file1
+            pixelsRead = fwrite(colors1, sizeof(uint8_t), 3, file1);
+
+            // Check if exactly 3 times it happened
+            if (pixelsRead != 3) {
+                printf("ERROR: Failed to write pixel data to %s.\n", argv[2]);
+                return 0;
+            }
+       }
+
+       // Skip padding
+       fseek(file1, padding, SEEK_CUR);
+       fseek(file2, padding, SEEK_CUR);
+    }
+
+    return 1;
 }
 
 uint16_t validateBMPFile(FILE *file, BMPFileHeader *bmpFile, BMPDIBHeader *dib)

@@ -7,7 +7,7 @@ int main(int argc, char *argv[])
     // argv[1] for the info so we can just compare strings
     // argv[2] for the image
 
-    if (argc != 3)
+    if (argc != 3 && argc != 4)
     {
         printf("ERROR: Missing arguments.\n");
         return 1;
