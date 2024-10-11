@@ -1,5 +1,4 @@
-#include "headerStructs.h"
-#include "stdlib.h"
+#include "commands.h"
 
 int main(int argc, char *argv[])
 {
@@ -8,39 +7,32 @@ int main(int argc, char *argv[])
     // argv[1] for the info so we can just compare strings
     // argv[2] for the image
 
-    if (argc != 3 || strcmp(argv[1], "--info"))
+    if (argc != 3)
     {
-        printf("ERROR: Missing arguments.");
+        printf("ERROR: Missing arguments.\n");
+        return 1;
     }
 
-    // for (int i = 0; i < argc, i++) 
-    // {
-    //     printf();
-    // }
+    if (!argv)
+    {
+        printf("ERROR: Missing arguments");
+        return 1;
+    }
 
+    u_int16_t result;
+    if (strcmp(argv[1], "--info") == 0)
+    {
+        result = infoCommand(argv);
+    }
+    else if (strcmp(argv[1], "--reveal") == 0)
+    {
+        result = revealCommand(argv);
+    }
+    else 
+    {
+        printf("ERROR: Missing Arguments.\n");
+        return 0;
+    }
 
-    // After the checks passed, we can write the info
-    // printf("=== BMP Header ===\n");
-    // printf("Type: BM\n");
-    // printf("Size: %u\n", fileHeader.fileSize);
-    // printf("Reserved 1: %u\n", fileHeader.reserved1);
-    // printf("Reserved 2: %u\n", fileHeader.reserved2);
-    // printf("Image offset: %u\n", fileHeader.pixelOffset);
-
-    // printf("\n=== DIB Header ===\n");
-    // printf("Size: %u\n", dibHeader.headerSize);
-    // printf("Width: %d\n", dibHeader.width);
-    // printf("Height: %d\n", dibHeader.height);
-    // printf("# color planes: %u\n", dibHeader.planes);
-    // printf("# bits per pixel: %u\n", dibHeader.bitsPerPixel);
-    // printf("Compression scheme: %u\n", dibHeader.compression);
-    // printf("Image size: %u\n", dibHeader.imageSize);
-    // printf("Horizontal resolution: %d\n", dibHeader.xResolution);
-    // printf("Vertical resolution: %d\n", dibHeader.yResolution);
-    // printf("# colors in palette: %u\n", dibHeader.colorsUsed);
-    // printf("# important colors: %u\n", dibHeader.importantColors);
-
-    // Close the file
-    fclose(file);
     return 0;
 }

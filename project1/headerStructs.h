@@ -10,7 +10,7 @@ typedef struct
     uint32_t fileSize;
     uint16_t reserved1;
     uint16_t reserved2;
-    uint32_t pixelArrayOffset;
+    uint32_t pixelOffset;
 } BMPFileHeader;
 
 typedef struct
@@ -28,4 +28,4 @@ typedef struct
     uint32_t importantColors;
 } BMPDIBHeader;
 
-#pragma pack(4) // Maybe this should be #pragma pack() to reset to default? But im just gonna follow the hints section
+#pragma pack() // Maybe this should be #pragma pack() to reset to default? But im just gonna follow the hints section
