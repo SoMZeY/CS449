@@ -28,10 +28,19 @@ int main(int argc, char *argv[])
     {
         result = revealCommand(argv);
     }
+    else if (strcmp(argv[1], "--hide") == 0)
+    {
+        result = hideCommand(argv);
+    }
     else 
     {
         printf("ERROR: Missing Arguments.\n");
         return 0;
+    }
+
+    if (result == 0)
+    {
+        printf("Command failed");
     }
 
     return 0;

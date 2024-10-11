@@ -1,6 +1,6 @@
 #include "commands.h"
 
-uint16_t infoCommand(const char *argv[])
+uint16_t infoCommand(char *argv[])
 {
     // Try to open the specified file
     FILE *file = fopen(argv[2], "rb");
@@ -61,7 +61,7 @@ uint16_t infoCommand(const char *argv[])
     return 1;
 }
 
-uint16_t revealCommand(const char* argv[])
+uint16_t revealCommand(char* argv[])
 {
     // Open the file in binary format, and allow reading and writing (+helps with that)
     FILE *file = fopen(argv[2], "rb+");
@@ -86,11 +86,19 @@ uint16_t revealCommand(const char* argv[])
         return 0;
     }
 
-    // Move the file pointer to the start of the pixel data
+    /*
+    * According to the cppreference; If the stream is open in binary mode,
+    * the new position is exactly offset bytes measured from the beginning
+    * of the file if origin is SEEK_SET
+    */
+
+    // So follow the instructions
     fseek(file, bmpFile.pixelOffset, SEEK_SET);
 
-    // Calculate the row size and padding
+    // Since the bmp needs to be multiple of 4 we need to calculate padding.
+    // First calculate the row size in bytes
     int rowSize = dib.width * 3;
+    // Calculate how many padding bytes we need to skip
     int padding = (4 - (rowSize % 4)) % 4;
 
     // Iterate over each pixel
@@ -98,30 +106,48 @@ uint16_t revealCommand(const char* argv[])
     {
         for (int x = 0; x < dib.width; x++)
         {
+            // Array in the BGR format. colors[0] == B, colors[1] == G, colors[2] == R
             uint8_t colors[3];
+        
+            // Read three bytes (representing one pixel) at a time and stores them in the colors array
+            uint8_t pixelsRead = fread(colors, sizeof(uint16_t), 3, file);
 
-            if (fread(colors, sizeof(uint8_t), 3, file) != 3)
+            // Check if it read exactly 3 pixels, otherwise this can cause problems
+            if (pixelsRead != 3)
             {
                 printf("ERROR: Failed to read pixel data.\n");
                 fclose(file);
                 return 0;
             }
 
+            // Perform masking
             for (int i = 0; i < 3; i++)
             {
+                /*
+                *  Perform upperbit masking and then shift it to the right (colors[i] & 0xF0) >> 4
+                *  Perform lowerbit masking and then shift it to the left  (colors[i] & 0x0F) << 4
+                *  Or them together to combine them
+                *  Do this for each of the colors
+                */
                 colors[i] = ((colors[i] & 0xF0) >> 4) | ((colors[i] & 0x0F) << 4);
             }
 
+            // As said in the instructions we need to traceback before writing, since its "too smart"
             fseek(file, -3, SEEK_CUR);
 
-            if (fwrite(colors, sizeof(uint8_t), 3, file) != 3)
+            // Write the new colors
+            pixelsRead = fwrite(colors, sizeof(uint8_t), 3, file);
+
+            // Needs to be exactly 3 pixels read to ensure correctness
+            if (pixelsRead != 3)
             {
                 printf("ERROR: Failed to write pixel data.\n");
                 fclose(file);
                 return 0;
             }
         }
-
+        
+        // Skip the padding bytes, and check for success
         if (fseek(file, padding, SEEK_CUR) != 0)
         {
             printf("ERROR: Failed to skip padding.\n");
@@ -133,6 +159,11 @@ uint16_t revealCommand(const char* argv[])
     // Close the file
     fclose(file);
     return 1;
+}
+
+uint16_t hideCommand(char *argv[])
+{
+    return 0;
 }
 
 uint16_t validateBMPFile(FILE *file, BMPFileHeader *bmpFile, BMPDIBHeader *dib)

@@ -7,8 +7,9 @@
 
 #include "headerStructs.h"
 
-uint16_t infoCommand(const char *argv[]);
-uint16_t revealCommand(const char *argv[]);
+uint16_t infoCommand(char *argv[]);
+uint16_t revealCommand(char *argv[]);
+uint16_t hideCommand(char *argv[]);
 
 // Helper functions
 uint16_t validateBMPFile(FILE *file, BMPFileHeader *bmpFile, BMPDIBHeader *dib);
