@@ -63,7 +63,14 @@ uint16_t infoCommand(char *argv[])
 
 uint16_t revealCommand(char* argv[])
 {
-    // Open the file in binary format, and allow reading and writing (+helps with that)
+    // Check if the required arguments are provided
+    if (argv[2] == NULL)
+    {
+        printf("ERROR: Missing arguments.\n");
+        return 0;
+    }
+
+    // Open the file in binary format, and allow reading and writing (+ helps with that)
     FILE *file = fopen(argv[2], "rb+");
 
     if (!file)
@@ -111,13 +118,12 @@ uint16_t revealCommand(char* argv[])
             uint8_t colors[3];
         
             // Read three bytes (representing one pixel) at a time and stores them in the colors array
-            uint8_t pixelsRead = fread(colors, sizeof(uint16_t), 3, file);
+            size_t pixelsRead = fread(colors, sizeof(uint8_t), 3, file);
 
             // Check if it read exactly 3 pixels, otherwise this can cause problems
             if (pixelsRead != 3)
             {
                 printf("ERROR: Failed to read pixel data.\n");
-                fclose(file);
                 return 0;
             }
 
@@ -125,15 +131,14 @@ uint16_t revealCommand(char* argv[])
             for (int i = 0; i < 3; i++)
             {
                 /*
-                *  Perform upperbit masking and then shift it to the right (colors[i] & 0xF0) >> 4
-                *  Perform lowerbit masking and then shift it to the left  (colors[i] & 0x0F) << 4
-                *  Or them together to combine them
-                *  Do this for each of the colors
+                * Extract the hidden data from the LSBs
+                * Shift to MSBs and duplicate into LSBs for better visibility
                 */
-                colors[i] = ((colors[i] & 0xF0) >> 4) | ((colors[i] & 0x0F) << 4);
+                uint8_t lsb = colors[i] & 0x0F;
+                colors[i] = (lsb << 4) | lsb;
             }
 
-            // As said in the instructions we need to traceback before writing, since its "too smart"
+            // As said in the instructions we need to traceback before writing, since it's "too smart"
             fseek(file, -3, SEEK_CUR);
 
             // Write the new colors
@@ -143,7 +148,6 @@ uint16_t revealCommand(char* argv[])
             if (pixelsRead != 3)
             {
                 printf("ERROR: Failed to write pixel data.\n");
-                fclose(file);
                 return 0;
             }
         }
@@ -152,7 +156,6 @@ uint16_t revealCommand(char* argv[])
         if (fseek(file, padding, SEEK_CUR) != 0)
         {
             printf("ERROR: Failed to skip padding.\n");
-            fclose(file);
             return 0;
         }
     }
@@ -164,44 +167,54 @@ uint16_t revealCommand(char* argv[])
 
 uint16_t hideCommand(char *argv[])
 {
+    // Check if the required arguments are provided
+    if (argv[2] == NULL || argv[3] == NULL)
+    {
+        printf("ERROR: Missing arguments.\n");
+        return 0;
+    }
+
     // Open both of the files
     // File 1
     FILE *file1 = fopen(argv[2], "rb+");
     if (!file1) 
     {
         printf("ERROR: File %s not found.\n", argv[2]);
-        fclose(file1);
         return 0;
     }
 
-    // File
+    // File 2
     FILE *file2 = fopen(argv[3], "rb");
     if (!file2) 
     {
         printf("ERROR: File %s not found.\n", argv[3]);
-        fclose(file2);
+        fclose(file1);
         return 0;
     }
 
-    // Create a validate the structs
+    // Create and validate the structs
     BMPFileHeader bmpFile1, bmpFile2;
     BMPDIBHeader dib1, dib2;
 
     // Validate the first set of structs
     uint8_t validationResult = validateBMPFile(file1, &bmpFile1, &dib1);
 
-    // Checks the validation of first set of structs
+    // Check validation of first set of structs
     if (validationResult == 0) 
     {
+        fclose(file1);
+        fclose(file2);
         return 0;
     }
 
     // Validation of the second set of structs
     validationResult = validateBMPFile(file2, &bmpFile2, &dib2);
     
-    // Checks validation for the second set of structs
+    // Check validation for the second set of structs
     if (validationResult == 0) 
     {
+        fclose(file1);
+        fclose(file2);
         return 0;
     }
 
@@ -209,6 +222,8 @@ uint16_t hideCommand(char *argv[])
     if (dib1.width != dib2.width || dib1.height != dib2.height) 
     {
         printf("ERROR: Images must have the same dimensions.\n");
+        fclose(file1);
+        fclose(file2);
         return 0;
     }
 
@@ -228,11 +243,14 @@ uint16_t hideCommand(char *argv[])
             uint8_t colors2[3];
 
             // Read the pixel from the file1
-            uint8_t pixelsRead = fread(colors1, sizeof(uint8_t), 3, file1);
+            size_t pixelsRead = fread(colors1, sizeof(uint8_t), 3, file1);
 
             // Check if exactly 3 were read
             if (pixelsRead != 3) {
                 printf("ERROR: Failed to read pixel data from %s.\n", argv[2]);
+                fclose(file1);
+                fclose(file2);
+                return 0;
             }
             
             // Read the pixel from the file2
@@ -241,38 +259,56 @@ uint16_t hideCommand(char *argv[])
             // Check if exactly 3 were read
             if (pixelsRead != 3) {
                 printf("ERROR: Failed to read pixel data from %s.\n", argv[3]);
+                fclose(file1);
+                fclose(file2);
+                return 0;
             }
- 
+     
             // Start the embedding of the data, where we need to perform some bit manipulation
             for (int i = 0; i < 3; i++) {
-                // Extract 4 MSBs from colors2, by uisng 0xF0 to mask the upper 4 bits
-                uint8_t msb = colors2[i] & 0xF0; // 0xF0 masks the upper 4 bits
- 
-                // Extract 4 LSBs from colors1, by using 0x0F to mask the lower 4 bits
-                uint8_t lsb = colors1[i] & 0x0F;
- 
-                // Combine msbs from colors2 with lsbs from colors1
-                colors1[i] = lsb | (msb);
+                // Extract 4 MSBs from colors2 and shift them to lower 4 bits
+                uint8_t msb = (colors2[i] & 0xF0) >> 4;
+
+                // Clear the lower 4 bits of colors1
+                colors1[i] &= 0xF0;
+
+                // Combine to embed the data
+                colors1[i] |= msb;
             }
- 
+     
             // Backtrack to start writing
             fseek(file1, -3, SEEK_CUR);
 
             // Write the modified pixel to file1
             pixelsRead = fwrite(colors1, sizeof(uint8_t), 3, file1);
 
-            // Check if exactly 3 times it happened
+            // Check if exactly 3 were written
             if (pixelsRead != 3) {
                 printf("ERROR: Failed to write pixel data to %s.\n", argv[2]);
+                fclose(file1);
+                fclose(file2);
                 return 0;
             }
        }
 
-       // Skip padding
-       fseek(file1, padding, SEEK_CUR);
-       fseek(file2, padding, SEEK_CUR);
+       // Skip padding in both files
+       if (fseek(file1, padding, SEEK_CUR) != 0) {
+           printf("ERROR: Failed to skip padding in %s.\n", argv[2]);
+           fclose(file1);
+           fclose(file2);
+           return 0;
+       }
+       if (fseek(file2, padding, SEEK_CUR) != 0) {
+           printf("ERROR: Failed to skip padding in %s.\n", argv[3]);
+           fclose(file1);
+           fclose(file2);
+           return 0;
+       }
     }
 
+    // Close the files
+    fclose(file1);
+    fclose(file2);
     return 1;
 }
 
