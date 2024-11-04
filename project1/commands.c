@@ -79,7 +79,7 @@ uint16_t revealCommand(char* argv[])
         return 0;
     }
 
-    // Create the header and the bimp variables
+    // Create the header and the bmp variables
     BMPFileHeader bmpFile;
     BMPDIBHeader dib;
 
@@ -124,18 +124,19 @@ uint16_t revealCommand(char* argv[])
             if (pixelsRead != 3)
             {
                 printf("ERROR: Failed to read pixel data.\n");
+                fclose(file);
                 return 0;
             }
 
-            // Perform masking
+            // Perform swapping
             for (int i = 0; i < 3; i++)
             {
                 /*
-                * Extract the hidden data from the LSBs
-                * Shift to MSBs and duplicate into LSBs for better visibility
+                * Swap the 4 MSBs and 4 LSBs
                 */
-                uint8_t lsb = colors[i] & 0x0F;
-                colors[i] = (lsb << 4) | lsb;
+                uint8_t msb = (colors[i] & 0xF0) >> 4;
+                uint8_t lsb = (colors[i] & 0x0F) << 4;
+                colors[i] = msb | lsb;
             }
 
             // As said in the instructions we need to traceback before writing, since it's "too smart"
@@ -144,10 +145,11 @@ uint16_t revealCommand(char* argv[])
             // Write the new colors
             pixelsRead = fwrite(colors, sizeof(uint8_t), 3, file);
 
-            // Needs to be exactly 3 pixels read to ensure correctness
+            // Needs to be exactly 3 pixels written to ensure correctness
             if (pixelsRead != 3)
             {
                 printf("ERROR: Failed to write pixel data.\n");
+                fclose(file);
                 return 0;
             }
         }
@@ -156,6 +158,7 @@ uint16_t revealCommand(char* argv[])
         if (fseek(file, padding, SEEK_CUR) != 0)
         {
             printf("ERROR: Failed to skip padding.\n");
+            fclose(file);
             return 0;
         }
     }
@@ -164,6 +167,7 @@ uint16_t revealCommand(char* argv[])
     fclose(file);
     return 1;
 }
+
 
 uint16_t hideCommand(char *argv[])
 {
