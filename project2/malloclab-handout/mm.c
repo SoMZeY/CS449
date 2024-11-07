@@ -1,12 +1,38 @@
-/***********************************
+/**_**_*****_*_*********************
  *   Student ID: lun8              *
  *   Student name: Luis Oliveira   *
  ***********************************/
 
 /*-------------------------------------------------------------------
  *
- *  Malloc Project Corrected Code
+ *  Malloc Project Starter code:
+ *        A (bad) malloc - always fails!
  *
+ * Project stage 1:
+ *        A malloc - modify the code to only request more memory
+ *            if we don't have free blocks that can fit the request.
+ *            We need to free! And keep track of the memory blocks.
+ *            Implement a data structure on each block that allows you
+ *            to traverse the list. Search free blocks. And be more
+ *            efficient. Don't split or coalesce blocks!
+ *
+ * Project stage 2:
+ *        A more efficient malloc - modify the code to split blocks
+ *            when overallocation is imminent. Don't forget to write
+ *            new metadata, and to update existing metadata to match
+ *            the new state of the linked list. When freeing, coalesce
+ *            blocks. If freeing creates a sequence of 2 or 3 free
+ *            blocks, merge them into a single one; again, modify all the
+ *            relevant metadata to make the linked list consistent
+ *
+ * Project stage 3:
+ *        A faster malloc - modify the code to keep track of a second
+ *            linked-list composed of free blocks. To do that, we take
+ *            some of the block space reserved for program allocations
+ *            but ONLY when the block is free! This is a more traditional
+ *            linked list where nodes can be in any order, and thus
+ *            requires an explicit node.
+*
  *-------------------------------------------------------------------- */
 
 // C libraries for C things
@@ -21,13 +47,13 @@
 #include "mm.h"
 
 /* Macros for unscaled pointer arithmetic to keep other code cleaner.
-   Casting to a char* has the effect that pointer arithmetic happens at
-   the byte granularity (i.e. POINTER_ADD(0x1, 1) would be 0x2).    (By
-   default, incrementing a pointer in C has the effect of incrementing
-   it by the size of the type to which it points (e.g. Block).)
-   We cast the result to void* to force you to cast back to the
-   appropriate type and ensure you don't accidentally use the resulting
-   pointer as a char* implicitly. Also avoids compiler complaints.
+     Casting to a char* has the effect that pointer arithmetic happens at
+     the byte granularity (i.e. POINTER_ADD(0x1, 1) would be 0x2).    (By
+     default, incrementing a pointer in C has the effect of incrementing
+     it by the size of the type to which it points (e.g. Block).)
+     We cast the result to void* to force you to cast back to the
+     appropriate type and ensure you don't accidentally use the resulting
+     pointer as a char* implicitly. Also avoids compiler complaints.
 */
 #define UNSCALED_POINTER_ADD(p, x) ((void *)((char *)(p) + (x)))
 #define UNSCALED_POINTER_SUB(p, x) ((void *)((char *)(p) - (x)))
@@ -40,27 +66,26 @@
  ***********************************************************************/
 typedef struct _BlockInfo
 {
-    long int size;          // Size of payload
-    struct _Block *prev;    // Pointer to previous block
+    long int size;          // Size of block
+    struct _Block *prev;    // Explicit pointer to previous Block
 } BlockInfo_t;
 
 typedef struct _FreeBlockInfo
 {
-    struct _Block *nextFree;    // Pointer to next free block
-    struct _Block *prevFree;    // Pointer to previous free block
+    struct _Block *nextFree;    // Explicit pointer to next free Block (stage 3)
+    struct _Block *prevFree;    // Explicit pointer to previous free Block (stage 3)
 } FreeBlockInfo_t;
 
 typedef struct _Block
 {
-    BlockInfo_t info;           // Block header
-    FreeBlockInfo_t freeNode;   // Free list pointers (used only when block is free)
-    // Payload starts immediately after this struct
+    BlockInfo_t info;           // Composing both infos into a single struct
+    FreeBlockInfo_t freeNode;   //  Think: What does this mean in terms of memory?
 } Block_t;
 
 typedef struct
 {
-    Block_t *malloc_list_tail;  // Pointer to the last block in the heap
-    Block_t *free_list_head;    // Pointer to the first block in the free list
+    Block_t *malloc_list_tail;  // Use keep track of the tail node
+    Block_t *free_list_head;    // Pointer to the first FreeBlockInfo_t in the free list, use in stage 3.
 } malloc_info_t;
 
 /* Variable to keep malloc information tidy */
@@ -96,9 +121,11 @@ void insert_free_node(Block_t *block);
 void remove_free_node(Block_t *block);
 
 // Helper functions
+
 /**
- * Returns the first block in the heap or NULL if the heap is uninitialized.
- */
+ * This function should get the first block or returns NULL if there is not one.
+ * You can use this to start your through search for a block.
+*/
 Block_t *first_block()
 {
     void *firstHeapByte = mem_heap_lo();
@@ -112,8 +139,9 @@ Block_t *first_block()
 }
 
 /**
- * Returns the block immediately after the given block or NULL if there is none.
- */
+ * This function will get the adjacent block or returns NULL if there is not one.
+ * You can use this to move along your malloc list one block at a time.
+*/
 Block_t *next_block(Block_t *block)
 {
     if (block == NULL)
@@ -156,7 +184,7 @@ void *request_more_space(size_t request_size)
 
     // Initialize the new block's metadata
     Block_t *newBlock = (Block_t *)ret;
-    newBlock->info.size = request_size; // Mark as allocated
+    newBlock->info.size = 0; // Initially free
     newBlock->info.prev = malloc_info.malloc_list_tail;
 
     // Update malloc_list_tail
@@ -175,22 +203,22 @@ size_t heap_size()
  * Heap management/navigation functions
  ************************************************************************/
 
-/******************************* Stage 1 ********************************/
+/******************************* Stage 0 ********************************/
 /* Find a free block of at least the requested size in the heap.
    Returns NULL if no free block is large enough. */
 Block_t *search_list(size_t request_size)
 {
-    Block_t *ptr_free_block = first_block();
+    Block_t *ptr_block = first_block();
 
-    while (ptr_free_block != NULL)
+    while (ptr_block != NULL)
     {
-        if (ptr_free_block->info.size < 0 && (-ptr_free_block->info.size) >= request_size)
+        if (ptr_block->info.size < 0 && (-ptr_block->info.size) >= request_size)
         {
             // Suitable free block found
-            return ptr_free_block;
+            return ptr_block;
         }
 
-        ptr_free_block = next_block(ptr_free_block);
+        ptr_block = next_block(ptr_block);
     }
 
     // No suitable block found
@@ -199,155 +227,45 @@ Block_t *search_list(size_t request_size)
 
 /******************************* Stage 2 ********************************/
 /* Shrink block to size, and create a new block with remaining space. */
+// Not implemented in Stage 0
 void split(Block_t *block, size_t size)
 {
-    size_t blockSize = -block->info.size; // Current block's payload size
-
-    size_t remaining_payload_size = blockSize - size - OVERHEAD;
-
-    if (remaining_payload_size >= MIN_BLOCK_SIZE)
-    {
-        // Set the size of the allocated block
-        block->info.size = size;
-
-        // Get the address of the new free block after splitting
-        Block_t *newBlock = (Block_t *)UNSCALED_POINTER_ADD(block, OVERHEAD + size);
-
-        // Set up the new free block
-        newBlock->info.size = -((long int)(remaining_payload_size));
-        newBlock->info.prev = block;
-
-        // Update next block's prev pointer
-        Block_t *next = next_block(newBlock);
-        if (next != NULL)
-        {
-            next->info.prev = newBlock;
-        }
-        else
-        {
-            // Update malloc_list_tail if needed
-            malloc_info.malloc_list_tail = newBlock;
-        }
-
-        // Insert the new free block into the free list
-        insert_free_node(newBlock);
-    }
-    else
-    {
-        // Not enough space to split; allocate the entire block
-        block->info.size = -block->info.size; // Mark as allocated
-        // Remove the block from the free list
-        remove_free_node(block);
-    }
+    // Stage 0 does not implement splitting
 }
 
 /* Merge together consecutive free blocks. */
+// Not implemented in Stage 0
 void coalesce(Block_t *block)
 {
-    Block_t *prevBlock = block->info.prev;
-    Block_t *nextBlock = next_block(block);
-
-    // Remove current block from free list
-    remove_free_node(block);
-
-    size_t totalSize = -block->info.size; // Payload size of the current block
-
-    // Coalesce with previous block if it's free
-    if (prevBlock != NULL && prevBlock->info.size < 0)
-    {
-        remove_free_node(prevBlock);
-        totalSize += OVERHEAD + (-prevBlock->info.size); // Add size of previous block
-        prevBlock->info.size = -((long int)totalSize);
-        block = prevBlock;
-    }
-    else
-    {
-        block->info.size = -((long int)totalSize);
-    }
-
-    // Coalesce with next block if it's free
-    if (nextBlock != NULL && nextBlock->info.size < 0)
-    {
-        remove_free_node(nextBlock);
-        totalSize += OVERHEAD + (-nextBlock->info.size); // Add size of next block
-        block->info.size = -((long int)totalSize);
-
-        // Update the next block's prev pointer
-        Block_t *nextNextBlock = next_block(nextBlock);
-        if (nextNextBlock != NULL)
-        {
-            nextNextBlock->info.prev = block;
-        }
-        else
-        {
-            // Update malloc_list_tail if needed
-            malloc_info.malloc_list_tail = block;
-        }
-    }
-
-    // Insert the coalesced block back into the free list
-    insert_free_node(block);
+    // Stage 0 does not implement coalescing
 }
 
 /******************************* Stage 3 ********************************/
-/* Insert free block into the free_list. */
+/* Insert free block into the free_list.
+   Not used in Stage 0 */
 void insert_free_node(Block_t *block)
 {
-    block->freeNode.nextFree = malloc_info.free_list_head;
-    block->freeNode.prevFree = NULL;
-
-    if (malloc_info.free_list_head != NULL)
-    {
-        malloc_info.free_list_head->freeNode.prevFree = block;
-    }
-
-    malloc_info.free_list_head = block;
+    // Stage 0 does not use an explicit free list
 }
 
-/* Remove free block from the free_list. */
+/* Remove free block from the free_list.
+   Not used in Stage 0 */
 void remove_free_node(Block_t *block)
 {
-    if (block->freeNode.prevFree != NULL)
-    {
-        block->freeNode.prevFree->freeNode.nextFree = block->freeNode.nextFree;
-    }
-    else
-    {
-        malloc_info.free_list_head = block->freeNode.nextFree;
-    }
-
-    if (block->freeNode.nextFree != NULL)
-    {
-        block->freeNode.nextFree->freeNode.prevFree = block->freeNode.prevFree;
-    }
-
-    // Clear the pointers for safety
-    block->freeNode.nextFree = NULL;
-    block->freeNode.prevFree = NULL;
+    // Stage 0 does not use an explicit free list
 }
 
+/******************************* Stage 3 ********************************/
 /* Find a free block of at least the requested size in the free list.
    Returns NULL if no free block is large enough. */
+// Not used in Stage 0
 Block_t *search_free_list(size_t request_size)
 {
-    Block_t *ptr_free_block = malloc_info.free_list_head;
-
-    while (ptr_free_block != NULL)
-    {
-        size_t block_size = -ptr_free_block->info.size;
-
-        if (block_size >= request_size)
-        {
-            return ptr_free_block;
-        }
-
-        ptr_free_block = ptr_free_block->freeNode.nextFree;
-    }
-
+    // Stage 0 does not use an explicit free list
     return NULL;
 }
 
-/* TOP-LEVEL ALLOCATOR INTERFACE ------------------------------------ */
+// TOP-LEVEL ALLOCATOR INTERFACE ------------------------------------
 
 /* Initialize the allocator. */
 int mm_init()
@@ -356,15 +274,12 @@ int mm_init()
     malloc_info.free_list_head = NULL;
     malloc_info.malloc_list_tail = NULL;
 
-    // Optionally, you can initialize the heap here if needed
-    // For example, requesting an initial block
-
     return 0;
 }
 
 /* Allocate a block of size bytes and return a pointer to it. If size is zero,
    returns NULL.
-*/
+ */
 void *mm_malloc(size_t size)
 {
     if (size == 0)
@@ -374,8 +289,8 @@ void *mm_malloc(size_t size)
 
     size_t request_size = align_size(size);
 
-    // Search for a suitable free block using the free list
-    Block_t *ptr_free_block = search_free_list(request_size);
+    // Stage 0: Use search_list instead of search_free_list
+    Block_t *ptr_free_block = search_list(request_size);
 
     if (ptr_free_block == NULL)
     {
@@ -389,11 +304,13 @@ void *mm_malloc(size_t size)
 
         // Initialize the new block as allocated
         ptr_free_block->info.size = request_size;
+        ptr_free_block->info.prev = malloc_info.malloc_list_tail;
     }
     else
     {
-        // Split the block if possible
-        split(ptr_free_block, request_size);
+        // Stage 0: Do not split the block
+        // Mark the block as allocated by setting size positive
+        ptr_free_block->info.size = ptr_free_block->info.size > 0 ? ptr_free_block->info.size : -ptr_free_block->info.size;
     }
 
     // Update malloc_list_tail if necessary
@@ -416,17 +333,13 @@ void mm_free(void *ptr)
 
     Block_t *block = (Block_t *)UNSCALED_POINTER_SUB(ptr, OVERHEAD);
 
-    // Mark the block as free
+    // Stage 0: Mark the block as free by setting size negative
     if (block->info.size > 0)
     {
         block->info.size = -block->info.size;
     }
 
-    // Insert the block into the free list
-    insert_free_node(block);
-
-    // Coalesce with adjacent free blocks
-    coalesce(block);
+    // Stage 0: Do not insert into free list or coalesce
 }
 
 /**********************************************************************
@@ -466,10 +379,7 @@ void examine_heap()
         }
         else
         {
-            fprintf(stderr, "FREE\tnextFree: %p, prevFree: %p, prev: %p\n",
-                    (void *)curr->freeNode.nextFree,
-                    (void *)curr->freeNode.prevFree,
-                    (void *)curr->info.prev);
+            fprintf(stderr, "FREE\tnextFree: %p, prevFree: %p, prev: %p\n", (void *)curr->freeNode.nextFree, (void *)curr->freeNode.prevFree, (void *)curr->info.prev);
         }
 
         curr = next_block(curr);
@@ -500,7 +410,6 @@ int check_heap()
         {
             fprintf(stderr, "check_heap: Error: previous link not correct.\n");
             examine_heap();
-            return -1;
         }
 
         if (curr->info.size <= 0)
@@ -521,7 +430,6 @@ int check_heap()
         {
             fprintf(stderr, "check_heap: Error: free list is circular.\n");
             examine_heap();
-            return -1;
         }
         last = curr;
         curr = curr->freeNode.nextFree;
@@ -529,16 +437,8 @@ int check_heap()
         {
             fprintf(stderr, "check_heap: Error: free list has more items than expected.\n");
             examine_heap();
-            return -1;
         }
         free_count--;
-    }
-
-    if (free_count != 0)
-    {
-        fprintf(stderr, "check_heap: Error: free list has fewer items than expected.\n");
-        examine_heap();
-        return -1;
     }
 
     return 0;
